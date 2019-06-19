@@ -9,37 +9,29 @@ class MyApp(ShowBase):
  
     def __init__(self):
         ShowBase.__init__(self)
-        format = GeomVertexFormat.getV3c4()
+
+        n = 10
+        y = 5
+
+        format = GeomVertexFormat.getV3c4()        
         vdata = GeomVertexData('sphere', format, Geom.UHStatic)
-        vdata.setNumRows(4)
+        vdata.setNumRows(n*n)
 
         vertex = GeomVertexWriter(vdata, 'vertex')
         color = GeomVertexWriter(vdata, 'color')
         prim = GeomTriangles(Geom.UHStatic)
 
-        #n = 4
-        #y = 15
-        #for row in range(0, n):
-        #    z = 1.0 - 2 * row/n
-        #    for col in range(0, n):
-        #        x = -1.0 + 2 * row / n
-        #        vertex.addData3f(x, y, z)
-        #        color.addData4f(1.0, 1.0, 1.0, 1.0)
-        #for row in range(0, n-1):
-        #    for col in range(0, n-1):
-        #        prim.addVertices(row * n + col + 1, row * n + col, (row+1) * n + col)
-        vertex.addData3f(1, 15, 1)
-        vertex.addData3f(-1, 15, 1)
-        vertex.addData3f(-1, 15, -1)
-        vertex.addData3f(1, 15, -1)
+        for row in range(0, n):
+            z = 1.0 - 2 * row/(n-1)
+            for col in range(0, n):
+                x = -1.0 + 2 * col / (n-1)
+                vertex.addData3f(x, y, z)
+                color.addData4f(1.0, 1.0, 1.0, 1.0)
+        for row in range(0, n-1):
+            for col in range(0, n-1):
+                prim.addVertices(row*n + col + 1, row*n + col, (row+1)*n + col)
+                prim.addVertices(row*n + col + 1, (row+1)*n + col, (row+1)*n + col + 1)
 
-        color.addData4f(1.0, 1.0, 1.0, 1.0)
-        color.addData4f(1.0, 1.0, 1.0, 1.0)
-        color.addData4f(1.0, 1.0, 1.0, 1.0)
-        color.addData4f(0, 0, 0, 1.0)
-
-        prim.addVertices(0, 1, 2)
-        prim.addVertices(2, 3, 0)
         geom = Geom(vdata)
         geom.addPrimitive(prim)
         node = GeomNode('TheSphere')
