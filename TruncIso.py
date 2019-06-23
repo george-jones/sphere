@@ -1,4 +1,4 @@
-from math import pi, sin, cos, sqrt
+from math import pi, sin, cos, sqrt, pow
 import random
 
 from direct.showbase.ShowBase import ShowBase
@@ -101,7 +101,31 @@ def distsq(p1, p2):
     in distance for comparison sake.
     
     """
-    return (p2.x - p1.x)^2 + (p2.y - p1.y)^2 + (p2.z - p1.z)^2
+    return pow(p2.x - p1.x, 2) + pow(p2.y - p1.y, 2) + pow(p2.z - p1.z, 2)
+
+
+def find_first_ccw(p1, p2, c):
+    o = Point3(0, 0, 0)
+    # Vector from origin to face center
+    cvec = c - o
+    # Vector from face center to point 1
+    p1c_vec = p1 - c
+    # Vector from face center to point 2
+    p2c_vec = p2 - c
+    # Cross product of two vectors
+    cross = p1c_vec.cross(p2c_vec)
+    # Dot of the cross and origin-face vector.
+    # Positive if they are in the same direction.
+    dp = vec_dot(cross, cvec)
+    if dp >= 0:
+        # The edge is defined in a counter-clockwise fashion
+        return p1
+    else:
+        return p2
+
+
+def sort_verts_angular(new_verts, center):
+    return
 
 
 def pg_trunciso(pg):
@@ -123,6 +147,7 @@ def pg_trunciso(pg):
             vec /= 3.0
             new_pt = vec + v.pt
             new_verts.append(Vertex(new_pt.x, new_pt.y, new_pt.z))
+            sort_verts_angular(new_verts, v.pt)
         for i in range(0, len(new_verts)):
             v1 = new_verts[i]
             v2 = new_verts[(i+1) % len(new_verts)]
@@ -135,7 +160,6 @@ def pg_trunciso(pg):
 
 def pg_draw_tris(pg, render):
     format = GeomVertexFormat.getV3c4()
-    #format = GeomVertexFormat.getV3()
     vdata = GeomVertexData('pgtris', format, Geom.UHStatic)
     vdata.setNumRows(len(pg.nodes))
     vertex = GeomVertexWriter(vdata, 'vertex')
@@ -164,6 +188,22 @@ def pg_draw_tris(pg, render):
     nodePath.setPos(0, 10, 0)
 
 
+def vec_dot(v1, v2):
+    """Does panda3d really not have this?
+
+    """
+    return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+
+
+def face_get_pts(face):
+    points = [ ]
+    for edge in face.edges:
+        pt = edge.p1
+        if pt not in points:
+            points.append(pt)
+    return points
+
+
 def shape_draw_tris(s, render):
     format = GeomVertexFormat.getV3c4()
     for face in s.faces:
@@ -177,19 +217,14 @@ def shape_draw_tris(s, render):
 
         vertex.addData3f(p.x, p.y, p.z)
         color.addData4f(1, 1, 1, 1)
-        q = 0
-        for i, edge in enumerate(face.edges):
-            if i == 0:
-                pt = edge.v1.pt
-                q += 1
-                vertex.addData3f(pt.x, pt.y, pt.z)
-                color.addData4f(1, 1, 1, 1)
-            pt = edge.v2.pt
-            q += 1
+        points = face_get_pts(face)
+        for i, pt in enumerate(points):
             vertex.addData3f(pt.x, pt.y, pt.z)
-            color.addData4f(1, 1, 1, 1)        
-        for i in range(0, len(face.edges)):
-            prim.addVertices(0, i+1, (i % len(face.edges) + 1))
+            color.addData4f(1, 1, 1, 1)
+        for i in range(0, len(points)):
+            idx = i+1
+            idx2 = idx % len(points) + 1
+            prim.addVertices(0, idx, idx2)
 
         geom = Geom(vdata)
         geom.addPrimitive(prim)
@@ -199,10 +234,35 @@ def shape_draw_tris(s, render):
         nodePath.setPos(0, 10, 0)
 
 
+def unsigned_angle(p1, p2, center):
+    o = Point3(0, 0, 0)
+    # Vector from origin to face center
+    cvec = center - o
+    cvec.normalize()
+    # Vector from face center to point 1
+    p1c_vec = p1 - center
+    p1c_vec.normalize()
+    # Vector from face center to point 2
+    p2c_vec = p2 - center
+    p2c_vec.normalize()
+    a = p1c_vec.signedAngleRad(p2c_vec, cvec)
+    if a >= 0:
+        return a
+    else:
+        return 2 * pi + a
+
+
 class MyApp(ShowBase):
  
     def __init__(self):
         ShowBase.__init__(self)
+
+        c = Point3(0,0,10)
+        p1 = Point3(10,0,10)
+        p2 = Point3(0,10,10)
+        print(unsigned_angle(p1, p2, c))
+        return
+
 
         g = (1 + sqrt(5)) / 2 # Golden ratio
 
