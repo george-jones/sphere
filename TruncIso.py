@@ -5,6 +5,61 @@ from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Point3
 from panda3d.core import Geom, GeomVertexFormat, GeomVertexData, GeomVertexWriter, GeomTriangles, GeomNode
 
+
+class Shape():
+    def __init__(self):
+        self.faces = [ ]
+        self.edges = [ ]
+        self.vertices = [ ]
+ 
+
+    def load_from_point_graph(self, pg):
+        """Loads up vertices and edges only.  The original faces don't matter.
+
+        """
+        # Convert point nodes to vertices
+        for n in pg.nodes:
+            v = Vertex(n.x, n.y, n.z)
+            self.vertices.append(v)
+        # Make edges
+        for i, n in enumerate(pg.nodes):
+            v1 = self.vertices[i]
+            for c in n.conn:
+                v2 = self.vertices[c.idx]
+                found = False
+                for e_existing in self.edges:
+                    if (e_existing.v1 == v1 or e_existing.v2 == v1) and \
+                        (e_existing.v1 == v2 or e_existing.v2 == v2):
+                        found = True
+                        break
+                if not found:
+                    e = Edge(v1, v2)
+                    self.edges.append(e)
+                    # vertices know which edges they are in
+                    v1.edges.append(e)
+                    v2.edges.append(e)
+
+
+class Face():
+    def __init__(self):
+        self.edges = [ ]
+        self.original_vertex = None
+
+
+class Edge():
+    def __init__(self, v1, v2):
+        self.v1 = v1
+        self.v2 = v2
+        self.faces = [ ]
+
+
+class Vertex():
+    def __init__(self, x, y, z):
+        self.pt = Point3(x, y, z)
+        self.edges = [ ]
+        self.spawned_face = None
+
+
 class PointGraph():
     def __init__(self):
         self.nodes = [ ]
@@ -30,6 +85,7 @@ class PointNode():
         self.z = z
         self.idx = idx
         self.conn = [ ]
+        self.spawned_face = None
 
     def connect(self, pt):
         """ Make sure to connect nodes in counter-clockwise order.
@@ -39,9 +95,42 @@ class PointNode():
             self.conn.append(pt)
 
 
-def pg_pentagonize(pg):
-    # every point becomes a pentagon, every triangle becomes a hexagon
-    pass
+def distsq(p1, p2):
+    """Get squared distance between two points.
+    A bit more efficient than taking the square root when we're just interested
+    in distance for comparison sake.
+    
+    """
+    return (p2.x - p1.x)^2 + (p2.y - p1.y)^2 + (p2.z - p1.z)^2
+
+
+def pg_trunciso(pg):
+    s = Shape()
+    s.load_from_point_graph(pg)
+
+    # every vertex becomes a pentagon
+    for v in s.vertices:
+        f = Face()
+        f.original_vertex = v
+        new_verts = [ ]
+        for e in v.edges:
+            # make new vertices
+            if e.v1 != v:
+                v2 = e.v1
+            else:
+                v2 = e.v2
+            vec = v2.pt - v.pt
+            vec /= 3.0
+            new_pt = vec + v.pt
+            new_verts.append(Vertex(new_pt.x, new_pt.y, new_pt.z))
+        for i in range(0, len(new_verts)):
+            v1 = new_verts[i]
+            v2 = new_verts[(i+1) % len(new_verts)]
+            e = Edge(v1, v2)
+            e.faces.append(f)
+            f.edges.append(e)
+        s.faces.append(f)
+    return s
 
 
 def pg_draw_tris(pg, render):
@@ -73,6 +162,41 @@ def pg_draw_tris(pg, render):
     node.addGeom(geom)
     nodePath = render.attachNewNode(node)
     nodePath.setPos(0, 10, 0)
+
+
+def shape_draw_tris(s, render):
+    format = GeomVertexFormat.getV3c4()
+    for face in s.faces:
+        p = face.original_vertex.pt
+        n = len(face.edges) + 1
+        vdata = GeomVertexData('facetris', format, Geom.UHStatic)
+        vdata.setNumRows(n+1)
+        vertex = GeomVertexWriter(vdata, 'vertex')
+        color = GeomVertexWriter(vdata, 'color')
+        prim = GeomTriangles(Geom.UHStatic)
+
+        vertex.addData3f(p.x, p.y, p.z)
+        color.addData4f(1, 1, 1, 1)
+        q = 0
+        for i, edge in enumerate(face.edges):
+            if i == 0:
+                pt = edge.v1.pt
+                q += 1
+                vertex.addData3f(pt.x, pt.y, pt.z)
+                color.addData4f(1, 1, 1, 1)
+            pt = edge.v2.pt
+            q += 1
+            vertex.addData3f(pt.x, pt.y, pt.z)
+            color.addData4f(1, 1, 1, 1)        
+        for i in range(0, len(face.edges)):
+            prim.addVertices(0, i+1, (i % len(face.edges) + 1))
+
+        geom = Geom(vdata)
+        geom.addPrimitive(prim)
+        node = GeomNode('TheTris')
+        node.addGeom(geom)
+        nodePath = render.attachNewNode(node)
+        nodePath.setPos(0, 10, 0)
 
 
 class MyApp(ShowBase):
@@ -118,8 +242,10 @@ class MyApp(ShowBase):
         pg.connect(11, [4, 8, 5, 2, 3])
     
         self.wireframeOn()
-        pg2 = pg_pentagonize(pg)
-        pg_draw_tris(pg, self.render)
+        #pg_draw_tris(pg, self.render)
+        s = pg_trunciso(pg)
+        shape_draw_tris(s, self.render)
+        #pg_draw_tris(pg, self.render)
 
 
  
