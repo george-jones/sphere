@@ -12,7 +12,6 @@ class Shape():
         self.edges = [ ]
         self.vertices = [ ]
  
-
     def get_bridge_edges(self):
         """Get edges that are not part of any faces - those
         that were made to bridge two faces.
@@ -78,17 +77,17 @@ class Vertex():
         self.edges = [ ]
         self.spawned_face = None
 
-
-    def get_connections(self):
+    def get_connections(self, exclude_edge=None):
         """Returns array of (vertex, edge) tuples
 
         """
         connections = [ ]
         for e in self.edges:
-            if e.v1 != self:
-                connections.append((e.v1, e))
-            if e.v2 != self:
-                connections.append((e.v2, e))
+            if e is not exclude_edge:
+                if e.v1 != self:
+                    connections.append((e.v1, e))
+                if e.v2 != self:
+                    connections.append((e.v2, e))
         return connections
 
 
@@ -203,6 +202,8 @@ def shape_bridge_faces(s):
                 continue
             # make bridging edge
             e = Edge(v_this, v_other)
+            v_this.edges.append(e)
+            v_other.edges.append(e)
             s.edges.append(e)
     # remove edges from original central verts
     for face in s.faces:
@@ -217,21 +218,29 @@ def faces_from_bridging_edges(s):
     origin = Point3(0, 0, 0)
 
     def find_next_ccw(e):
-        for vert1, vert2 in ((edge.v1, edge.v2), (edge.v2, edge.v1)):
+        for vert1, vert2 in ((e.v1, e.v2), (e.v2, e.v1)):
             vec1 = vert2.pt - vert1.pt
             ovec = vert2.pt - origin
-            for cvert, cedge in vert2.get_connections():
-                if len(cedge.faces) == 2:
+            #print("vert1: %f,%f,%f" % (vert1.pt.x, vert1.pt.y, vert1.pt.z))
+            #print("vert2: %f,%f,%f" % (vert2.pt.x, vert2.pt.y, vert2.pt.z))
+            #print("conn: %d" % len(vert2.get_connections(e)))
+            for cvert, cedge in vert2.get_connections(e):
+                #print("cvert: %f,%f,%f" % (cvert.pt.x, cvert.pt.y, cvert.pt.z))
+                if len(cedge.faces) == 2 or cvert is vert1 or cvert is vert2:
+                    print("nah")
+                    #print("have 2 faces already)")
                     continue
                 vec2 = cvert.pt - vert2.pt
                 cpvec = vec1.cross(vec2)
                 d = vec_dot(cpvec, ovec)
-                if d >= 0:
+                print("dot: %f" % d)
+                if d > 0:
                     # counterclockwise, yay
                     return cedge
         return None
 
     # make hexagons
+    new_hex = 0
     for edge in s.get_bridge_edges():
         if len(edge.faces) == 2:
             continue
@@ -248,16 +257,16 @@ def faces_from_bridging_edges(s):
             for v in verts:
                 pt += v.pt
             pt /= len(verts)
+            for e in f.edges:
+                if f not in e.faces:
+                    e.faces.append(f)
             f.original_vertex = Vertex(pt.x, pt.y, pt.z)
+            f.original_vertex.spawned_face = f
             s.faces.append(f)
+            new_hex += 1
         else:
             print("Nope, edges: %d" % len(f.edges))
-        
-
-              
-        
-                
-
+    print("new hexes: %d" % new_hex)
 
 
 def pg_trunciso(pg):
@@ -285,6 +294,8 @@ def pg_trunciso(pg):
             v1 = new_verts[i]
             v2 = new_verts[(i+1) % len(new_verts)]
             e = Edge(v1, v2)
+            v1.edges.append(e)
+            v2.edges.append(e)
             e.faces.append(f)
             f.edges.append(e)
         s.faces.append(f)
@@ -369,6 +380,7 @@ def shape_draw_tris(s, render):
         nodePath = render.attachNewNode(node)
         nodePath.setPos(0, 10, 0)
 
+    return
     for edge in [e for e in s.edges if len(e.faces) == 0]:
         vdata = GeomVertexData('edgetris', format, Geom.UHStatic)
         vdata.setNumRows(3)
