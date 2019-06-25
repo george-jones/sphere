@@ -1,5 +1,4 @@
 from math import pi, sin, cos, sqrt, pow
-import random
 
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Point3
@@ -124,8 +123,28 @@ def find_first_ccw(p1, p2, c):
         return p2
 
 
+def unsigned_angle(p1, p2, center):
+    o = Point3(0, 0, 0)
+    # Vector from origin to face center
+    cvec = center - o
+    cvec.normalize()
+    # Vector from face center to point 1
+    p1c_vec = p1 - center
+    p1c_vec.normalize()
+    # Vector from face center to point 2
+    p2c_vec = p2 - center
+    p2c_vec.normalize()
+    a = p1c_vec.signedAngleRad(p2c_vec, cvec)
+    if a >= 0:
+        return a
+    else:
+        return 2 * pi + a
+
+
 def sort_verts_angular(new_verts, center):
-    return
+    # arbitrarily choose 1st vertex as one for comparison
+    pt = new_verts[0].pt
+    new_verts.sort(key=lambda vert: unsigned_angle(pt, vert.pt, center))
 
 
 def pg_trunciso(pg):
@@ -198,7 +217,7 @@ def vec_dot(v1, v2):
 def face_get_pts(face):
     points = [ ]
     for edge in face.edges:
-        pt = edge.p1
+        pt = edge.v1.pt
         if pt not in points:
             points.append(pt)
     return points
@@ -234,35 +253,10 @@ def shape_draw_tris(s, render):
         nodePath.setPos(0, 10, 0)
 
 
-def unsigned_angle(p1, p2, center):
-    o = Point3(0, 0, 0)
-    # Vector from origin to face center
-    cvec = center - o
-    cvec.normalize()
-    # Vector from face center to point 1
-    p1c_vec = p1 - center
-    p1c_vec.normalize()
-    # Vector from face center to point 2
-    p2c_vec = p2 - center
-    p2c_vec.normalize()
-    a = p1c_vec.signedAngleRad(p2c_vec, cvec)
-    if a >= 0:
-        return a
-    else:
-        return 2 * pi + a
-
-
 class MyApp(ShowBase):
  
     def __init__(self):
         ShowBase.__init__(self)
-
-        c = Point3(0,0,10)
-        p1 = Point3(10,0,10)
-        p2 = Point3(0,10,10)
-        print(unsigned_angle(p1, p2, c))
-        return
-
 
         g = (1 + sqrt(5)) / 2 # Golden ratio
 
