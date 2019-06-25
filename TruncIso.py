@@ -1,4 +1,5 @@
 from math import pi, sin, cos, sqrt, pow
+import random
 
 from direct.showbase.ShowBase import ShowBase
 from panda3d.core import Point3
@@ -43,6 +44,18 @@ class Face():
     def __init__(self):
         self.edges = [ ]
         self.original_vertex = None
+
+    def get_vertices(self):
+        """Get unique list of vertices included in edges.
+
+        """
+        vertices = [ ]
+        for edge in self.edges:
+            if edge.v1 not in vertices:
+                vertices.append(edge.v1)
+            if edge.v2 not in vertices:
+                vertices.append(edge.v2)
+        return vertices
 
 
 class Edge():
@@ -147,6 +160,39 @@ def sort_verts_angular(new_verts, center):
     new_verts.sort(key=lambda vert: unsigned_angle(pt, vert.pt, center))
 
 
+def find_closest_vert(verts, other_vert):
+    other_pt = other_vert.pt
+    a = sorted(verts, key=lambda v: distsq(v.pt, other_pt))
+    return a[0]
+
+
+def shape_bridge_faces(s):
+    for face in s.faces:
+        # find edges that included the original vertex of this face
+        vert = face.original_vertex
+        for edge in vert.edges:
+            if edge.v1 == vert:
+                other_face = edge.v2.spawned_face
+            else:
+                other_face = edge.v1.spawned_face
+            # find two closest vertices in the two faces
+            v_this = find_closest_vert(face.get_vertices(), other_face.original_vertex)
+            v_other = find_closest_vert(other_face.get_vertices(), face.original_vertex)
+            if len(v_this.edges) >= 3 or len(v_other.edges) >= 3:
+                # we've already connected going the other direction
+                continue
+            # make bridging edge
+            e = Edge(v_this, v_other)
+            s.edges.append(e)
+    # remove edges from original central verts
+    for face in s.faces:
+        vert = face.original_vertex
+        for edge in vert.edges:
+            if edge in s.edges:
+                s.edges.remove(edge)
+        vert.edges = [ ]
+
+
 def pg_trunciso(pg):
     s = Shape()
     s.load_from_point_graph(pg)
@@ -155,6 +201,7 @@ def pg_trunciso(pg):
     for v in s.vertices:
         f = Face()
         f.original_vertex = v
+        v.spawned_face = f
         new_verts = [ ]
         for e in v.edges:
             # make new vertices
@@ -174,6 +221,9 @@ def pg_trunciso(pg):
             e.faces.append(f)
             f.edges.append(e)
         s.faces.append(f)
+    
+    shape_bridge_faces(s)
+
     return s
 
 
@@ -239,11 +289,35 @@ def shape_draw_tris(s, render):
         points = face_get_pts(face)
         for i, pt in enumerate(points):
             vertex.addData3f(pt.x, pt.y, pt.z)
-            color.addData4f(1, 1, 1, 1)
+            color.addData4f(random.random(), random.random(), random.random(), 1.0)
         for i in range(0, len(points)):
             idx = i+1
             idx2 = idx % len(points) + 1
             prim.addVertices(0, idx, idx2)
+
+        geom = Geom(vdata)
+        geom.addPrimitive(prim)
+        node = GeomNode('TheTris')
+        node.addGeom(geom)
+        nodePath = render.attachNewNode(node)
+        nodePath.setPos(0, 10, 0)
+
+    for edge in [e for e in s.edges if len(e.faces) == 0]:
+        vdata = GeomVertexData('edgetris', format, Geom.UHStatic)
+        vdata.setNumRows(3)
+        vertex = GeomVertexWriter(vdata, 'vertex')
+        color = GeomVertexWriter(vdata, 'color')
+        prim = GeomTriangles(Geom.UHStatic)
+
+        vertex.addData3f(0, 0, 0)
+        color.addData4f(1, 1, 1, 1)
+        
+        vertex.addData3f(edge.v1.pt.x, edge.v1.pt.y, edge.v1.pt.z)
+        color.addData4f(0.25, 0.25, 0.25, 1)
+        vertex.addData3f(edge.v2.pt.x, edge.v2.pt.y, edge.v2.pt.z)
+        color.addData4f(0.5, 0.5, 0.5, 1)
+
+        prim.addVertices(0, 1, 2)
 
         geom = Geom(vdata)
         geom.addPrimitive(prim)
@@ -295,7 +369,7 @@ class MyApp(ShowBase):
         pg.connect(10, [6, 9, 7, 3, 2])
         pg.connect(11, [4, 8, 5, 2, 3])
     
-        self.wireframeOn()
+        #self.wireframeOn()
         #pg_draw_tris(pg, self.render)
         s = pg_trunciso(pg)
         shape_draw_tris(s, self.render)
