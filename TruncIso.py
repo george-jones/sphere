@@ -13,6 +13,13 @@ class Shape():
         self.vertices = [ ]
  
 
+    def get_bridge_edges(self):
+        """Get edges that are not part of any faces - those
+        that were made to bridge two faces.
+
+        """
+        return [ e for e in self.edges if len(e.faces) == 0]
+
     def load_from_point_graph(self, pg):
         """Loads up vertices and edges only.  The original faces don't matter.
 
@@ -70,6 +77,19 @@ class Vertex():
         self.pt = Point3(x, y, z)
         self.edges = [ ]
         self.spawned_face = None
+
+
+    def get_connections(self):
+        """Returns array of (vertex, edge) tuples
+
+        """
+        connections = [ ]
+        for e in self.edges:
+            if e.v1 != self:
+                connections.append((e.v1, e))
+            if e.v2 != self:
+                connections.append((e.v2, e))
+        return connections
 
 
 class PointGraph():
@@ -193,6 +213,53 @@ def shape_bridge_faces(s):
         vert.edges = [ ]
 
 
+def faces_from_bridging_edges(s):
+    origin = Point3(0, 0, 0)
+
+    def find_next_ccw(e):
+        for vert1, vert2 in ((edge.v1, edge.v2), (edge.v2, edge.v1)):
+            vec1 = vert2.pt - vert1.pt
+            ovec = vert2.pt - origin
+            for cvert, cedge in vert2.get_connections():
+                if len(cedge.faces) == 2:
+                    continue
+                vec2 = cvert.pt - vert2.pt
+                cpvec = vec1.cross(vec2)
+                d = vec_dot(cpvec, ovec)
+                if d >= 0:
+                    # counterclockwise, yay
+                    return cedge
+        return None
+
+    # make hexagons
+    for edge in s.get_bridge_edges():
+        if len(edge.faces) == 2:
+            continue
+        f = Face()
+        e = edge
+        while e is not None and e not in f.edges:
+            f.edges.append(e)
+            e = find_next_ccw(e)
+        if len(f.edges) == 6:
+            # find midpoint.  we'll say that was the "original" vertex,
+            # just like the pents we made.
+            verts = f.get_vertices()
+            pt = Point3(0, 0, 0)
+            for v in verts:
+                pt += v.pt
+            pt /= len(verts)
+            f.original_vertex = Vertex(pt.x, pt.y, pt.z)
+            s.faces.append(f)
+        else:
+            print("Nope, edges: %d" % len(f.edges))
+        
+
+              
+        
+                
+
+
+
 def pg_trunciso(pg):
     s = Shape()
     s.load_from_point_graph(pg)
@@ -223,7 +290,7 @@ def pg_trunciso(pg):
         s.faces.append(f)
     
     shape_bridge_faces(s)
-
+    faces_from_bridging_edges(s)
     return s
 
 
