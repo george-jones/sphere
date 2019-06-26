@@ -63,6 +63,22 @@ class Face():
                 vertices.append(edge.v2)
         return vertices
 
+    def get_points(self):
+        verts = self.get_vertices()
+        points = [ ]
+        for v in verts:
+            pt = v.pt
+            if pt not in points:
+                points.append(pt)
+        if self.original_vertex is not None:
+            center = self.original_vertex.pt
+        else:
+            center = Point3(0, 0, 0)
+            for p in points:
+                center += p
+            center /= len(points)
+        return { "points": sort_pts_angular(points, center), "center": center }
+
 
 class Edge():
     def __init__(self, v1, v2):
@@ -179,6 +195,12 @@ def sort_verts_angular(new_verts, center):
     new_verts.sort(key=lambda vert: unsigned_angle(pt, vert.pt, center))
 
 
+def sort_pts_angular(points, center):
+    # arbitrarily choose 1st vertex as one for comparison
+    pt = points[0]
+    return sorted(points, key=lambda p: unsigned_angle(pt, p, center))
+
+
 def find_closest_vert(verts, other_vert):
     other_pt = other_vert.pt
     a = sorted(verts, key=lambda v: distsq(v.pt, other_pt))
@@ -214,10 +236,16 @@ def shape_bridge_faces(s):
         vert.edges = [ ]
 
 
+def dump_points(pts):
+    for pt in pts:
+        print("%f,%f,%f" % (pt.x, pt.y, pt.z))
+
+
 def faces_from_bridging_edges(s):
     origin = Point3(0, 0, 0)
 
-    def find_next_ccw(e):
+    def find_next_ccw(f, e, rej_edges):
+        #print("---find_next_ccw---")
         for vert1, vert2 in ((e.v1, e.v2), (e.v2, e.v1)):
             vec1 = vert2.pt - vert1.pt
             ovec = vert2.pt - origin
@@ -225,18 +253,26 @@ def faces_from_bridging_edges(s):
             #print("vert2: %f,%f,%f" % (vert2.pt.x, vert2.pt.y, vert2.pt.z))
             #print("conn: %d" % len(vert2.get_connections(e)))
             for cvert, cedge in vert2.get_connections(e):
+                if cedge in rej_edges:
+                    # don't reconsider an edge we already decided we don't want
+                    continue
                 #print("cvert: %f,%f,%f" % (cvert.pt.x, cvert.pt.y, cvert.pt.z))
                 if len(cedge.faces) == 2 or cvert is vert1 or cvert is vert2:
-                    print("nah")
-                    #print("have 2 faces already)")
+                    rej_edges.append(cedge)
+                    continue
+                if cedge in f.edges:
+                    #print('Edge already part of face')
                     continue
                 vec2 = cvert.pt - vert2.pt
                 cpvec = vec1.cross(vec2)
                 d = vec_dot(cpvec, ovec)
-                print("dot: %f" % d)
                 if d > 0:
                     # counterclockwise, yay
+                    #print("dot > 0, counterclockwise")
                     return cedge
+                else:
+                    rej_edges.append(cedge)
+                    #print("nope, clockwise")
         return None
 
     # make hexagons
@@ -246,27 +282,28 @@ def faces_from_bridging_edges(s):
             continue
         f = Face()
         e = edge
+        rejected_edges = [ ]
         while e is not None and e not in f.edges:
             f.edges.append(e)
-            e = find_next_ccw(e)
-        if len(f.edges) == 6:
-            # find midpoint.  we'll say that was the "original" vertex,
-            # just like the pents we made.
-            verts = f.get_vertices()
-            pt = Point3(0, 0, 0)
-            for v in verts:
-                pt += v.pt
-            pt /= len(verts)
-            for e in f.edges:
-                if f not in e.faces:
-                    e.faces.append(f)
-            f.original_vertex = Vertex(pt.x, pt.y, pt.z)
-            f.original_vertex.spawned_face = f
-            s.faces.append(f)
-            new_hex += 1
-        else:
-            print("Nope, edges: %d" % len(f.edges))
+            if len(f.edges) == 6:
+                pobj = f.get_points()
+                #dump_points(pobj['points'])
+                x = pobj['center'].x
+                y = pobj['center'].y
+                z = pobj['center'].z
+                for e in f.edges:
+                    if f not in e.faces:
+                        e.faces.append(f)
+                f.original_vertex = Vertex(x, y, z)
+                f.original_vertex.spawned_face = f
+                s.faces.append(f)
+                new_hex += 1
+                break
+            e = find_next_ccw(f, e, rejected_edges)
+        #return # for now
     print("new hexes: %d" % new_hex)
+
+# https://technology.cpm.org/general/3dgraph/?graph3ddata=____bHw7kw2gxvSIw7kxcnxvSJxfvxhqxsKKxcnxpCxnGLw2gxpCxnGMw_8xhqxsK
 
 
 def pg_trunciso(pg):
@@ -342,15 +379,6 @@ def vec_dot(v1, v2):
     return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
 
 
-def face_get_pts(face):
-    points = [ ]
-    for edge in face.edges:
-        pt = edge.v1.pt
-        if pt not in points:
-            points.append(pt)
-    return points
-
-
 def shape_draw_tris(s, render):
     format = GeomVertexFormat.getV3c4()
     for face in s.faces:
@@ -364,7 +392,8 @@ def shape_draw_tris(s, render):
 
         vertex.addData3f(p.x, p.y, p.z)
         color.addData4f(1, 1, 1, 1)
-        points = face_get_pts(face)
+        pobj = face.get_points()
+        points = pobj['points']
         for i, pt in enumerate(points):
             vertex.addData3f(pt.x, pt.y, pt.z)
             color.addData4f(random.random(), random.random(), random.random(), 1.0)
