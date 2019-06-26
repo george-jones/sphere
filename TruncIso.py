@@ -244,9 +244,17 @@ def dump_points(pts):
 def faces_from_bridging_edges(s):
     origin = Point3(0, 0, 0)
 
-    def find_next_ccw(f, e, rej_edges):
+    def find_next_ccw(f, e, prev_vert, rej_edges):
         #print("---find_next_ccw---")
-        for vert1, vert2 in ((e.v1, e.v2), (e.v2, e.v1)):
+        if prev_vert is None:
+            options = [ (e.v1, e.v2), (e.v2, e.v1) ]
+        else:
+            if e.v1 is prev_vert:
+                old_vert = e.v2
+            else:
+                old_vert = e.v1
+            options = [ (old_vert, prev_vert)]
+        for vert1, vert2 in options:
             vec1 = vert2.pt - vert1.pt
             ovec = vert2.pt - origin
             #print("vert1: %f,%f,%f" % (vert1.pt.x, vert1.pt.y, vert1.pt.z))
@@ -269,11 +277,11 @@ def faces_from_bridging_edges(s):
                 if d > 0:
                     # counterclockwise, yay
                     #print("dot > 0, counterclockwise")
-                    return cedge
+                    return cedge, cvert
                 else:
                     rej_edges.append(cedge)
                     #print("nope, clockwise")
-        return None
+        return (None, None)
 
     # make hexagons
     new_hex = 0
@@ -283,6 +291,7 @@ def faces_from_bridging_edges(s):
         f = Face()
         e = edge
         rejected_edges = [ ]
+        new_vert = None
         while e is not None and e not in f.edges:
             f.edges.append(e)
             if len(f.edges) == 6:
@@ -299,8 +308,7 @@ def faces_from_bridging_edges(s):
                 s.faces.append(f)
                 new_hex += 1
                 break
-            e = find_next_ccw(f, e, rejected_edges)
-        #return # for now
+            e, new_vert = find_next_ccw(f, e, new_vert, rejected_edges)
     print("new hexes: %d" % new_hex)
 
 # https://technology.cpm.org/general/3dgraph/?graph3ddata=____bHw7kw2gxvSIw7kxcnxvSJxfvxhqxsKKxcnxpCxnGLw2gxpCxnGMw_8xhqxsK
@@ -382,6 +390,7 @@ def vec_dot(v1, v2):
 def shape_draw_tris(s, render):
     format = GeomVertexFormat.getV3c4()
     for face in s.faces:
+        r, g, b = (random.random(), random.random(), random.random())
         p = face.original_vertex.pt
         n = len(face.edges) + 1
         vdata = GeomVertexData('facetris', format, Geom.UHStatic)
@@ -391,12 +400,14 @@ def shape_draw_tris(s, render):
         prim = GeomTriangles(Geom.UHStatic)
 
         vertex.addData3f(p.x, p.y, p.z)
-        color.addData4f(1, 1, 1, 1)
+        color.addData4f((1+r)/2, (1+g)/2, (1+b)/2, 1)
         pobj = face.get_points()
         points = pobj['points']
         for i, pt in enumerate(points):
             vertex.addData3f(pt.x, pt.y, pt.z)
-            color.addData4f(random.random(), random.random(), random.random(), 1.0)
+            #color.addData4f(random.random(), random.random(), random.random(), 1.0)
+            #color.addData4f(1, 1, 1, 1.0)
+            color.addData4f(r, g, b, 1.0)
         for i in range(0, len(points)):
             idx = i+1
             idx2 = idx % len(points) + 1
@@ -409,7 +420,6 @@ def shape_draw_tris(s, render):
         nodePath = render.attachNewNode(node)
         nodePath.setPos(0, 10, 0)
 
-    return
     for edge in [e for e in s.edges if len(e.faces) == 0]:
         vdata = GeomVertexData('edgetris', format, Geom.UHStatic)
         vdata.setNumRows(3)
@@ -417,13 +427,14 @@ def shape_draw_tris(s, render):
         color = GeomVertexWriter(vdata, 'color')
         prim = GeomTriangles(Geom.UHStatic)
 
-        vertex.addData3f(0, 0, 0)
-        color.addData4f(1, 1, 1, 1)
+        #vertex.addData3f(0, 0, 0)
+        vertex.addData3f(edge.v1.pt.x, edge.v1.pt.y, edge.v1.pt.z)
+        color.addData4f(0, 0, 0, 1)
         
         vertex.addData3f(edge.v1.pt.x, edge.v1.pt.y, edge.v1.pt.z)
-        color.addData4f(0.25, 0.25, 0.25, 1)
+        color.addData4f(0, 0, 0, 1)
         vertex.addData3f(edge.v2.pt.x, edge.v2.pt.y, edge.v2.pt.z)
-        color.addData4f(0.5, 0.5, 0.5, 1)
+        color.addData4f(0, 0, 0, 1)
 
         prim.addVertices(0, 1, 2)
 
