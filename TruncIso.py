@@ -74,6 +74,14 @@ class Face():
                 vertices.append(edge.v2)
         return vertices
 
+    def get_midpoint(self):
+        center = Point3(0, 0, 0)
+        verts = self.get_vertices()
+        for v in verts:
+            center += v.pt
+        center /= len(verts)
+        return center
+
     def get_points(self):
         verts = self.get_vertices()
         points = [ ]
@@ -218,7 +226,7 @@ def find_closest_vert(verts, other_vert):
     return a[0]
 
 
-def shape_bridge_faces(s):
+def shape_make_face_bridges(s):
     for face in s.faces:
         # find edges that included the original vertex of this face
         vert = face.original_vertex
@@ -320,9 +328,6 @@ def faces_from_bridging_edges(s):
                 new_hex += 1
                 break
             e, new_vert = find_next_ccw(f, e, new_vert, rejected_edges)
-    print("new hexes: %d" % new_hex)
-
-# https://technology.cpm.org/general/3dgraph/?graph3ddata=____bHw7kw2gxvSIw7kxcnxvSJxfvxhqxsKKxcnxpCxnGLw2gxpCxnGMw_8xhqxsK
 
 
 def pg_trunciso(pg):
@@ -356,40 +361,12 @@ def pg_trunciso(pg):
             f.edges.append(e)
         s.faces.append(f)
     
-    shape_bridge_faces(s)
+    s.spherize_vertices()
+    shape_make_face_bridges(s)
+    s.spherize_vertices()
     faces_from_bridging_edges(s)
     s.spherize_vertices()
     return s
-
-
-def pg_draw_tris(pg, render):
-    format = GeomVertexFormat.getV3c4()
-    vdata = GeomVertexData('pgtris', format, Geom.UHStatic)
-    vdata.setNumRows(len(pg.nodes))
-    vertex = GeomVertexWriter(vdata, 'vertex')
-    color = GeomVertexWriter(vdata, 'color')
-    prim = GeomTriangles(Geom.UHStatic)
-
-    for pt in pg.nodes:
-        vertex.addData3f(pt.x, pt.y, pt.z)
-        c = (1.0 - pt.y)
-        if c > 1.0:
-            c - 1.0
-        color.addData4f(c, c, c, 1.0)
-        #color.addData4f(random.random(), random.random(), random.random(), 1.0)
-        
-    for pt in pg.nodes:
-        if len(pt.conn) > 0:
-            for i,cpt in enumerate(pt.conn):
-                next_cpt = pt.conn[(i+1) % len(pt.conn)]
-                prim.addVertices(pt.idx, cpt.idx, next_cpt.idx)
-
-    geom = Geom(vdata)
-    geom.addPrimitive(prim)
-    node = GeomNode('TheTris')
-    node.addGeom(geom)
-    nodePath = render.attachNewNode(node)
-    nodePath.setPos(0, 0, 0)
 
 
 def vec_dot(v1, v2):
@@ -397,6 +374,62 @@ def vec_dot(v1, v2):
 
     """
     return v1.x * v2.x + v1.y * v2.y + v1.z * v2.z
+
+
+def shape_tessalate(s):
+    # for every face, make new vertices that are scaled in
+    # relative to the midpoint.  Create new faceless edges
+    # connecting to the original vertices.  Remove original
+    # face from the shape's face list.
+    to_remove = [ ]
+    to_add = [ ]
+    for f in s.faces:
+        midpt = f.get_midpoint()
+        mid_vertex = Vertex(midpt.x, midpt.y, midpt.z)
+        new_verts = [ ]
+        verts = f.get_vertices()
+        for old_vert in verts:
+            pt = old_vert.pt
+            v = Vertex((midpt.x + pt.x) / 2, (midpt.y + pt.y) / 2, (midpt.z + pt.z) / 2)
+            new_verts.append(v)
+            # faceless edge connecting the original vertex to new vertex
+            e = Edge(v, old_vert)
+            f.edges.append(e)
+            s.vertices.append(v)
+        sort_verts_angular(new_verts, midpt)
+        new_face = Face()
+        new_face.original_vertex = mid_vertex
+        s.vertices.append(mid_vertex)
+        for idx, vert in enumerate(new_verts):
+            next_vert = new_verts[(idx+1) % len(new_verts)]
+            e = Edge(vert, next_vert)
+            new_face.edges.append(e)
+        to_remove.append(f)
+        to_add.append(new_face)
+        if f.original_vertex in s.vertices:
+            s.vertices.remove(f.original_vertex)
+    for f in to_remove:
+        s.faces.remove(f)
+        for e in f.edges:
+            if e in e.v1.edges:
+                e.v1.edges.remove(e)
+            if e in e.v2.edges:
+                e.v2.edges.remove(e)
+            if e in s.edges:
+                s.edges.remove(e)
+    for f in to_add:
+        s.faces.append(f)
+
+    # Then destroy all original edges, making their linked
+    # points also no longer reference them.  Then follow hex
+    # making procedure from the truncation step.
+    
+    s.spherize_vertices()
+    #shape_make_face_bridges(s)
+    #s.spherize_vertices()
+    #faces_from_bridging_edges(s)
+    #s.spherize_vertices()
+    pass
 
 
 def shape_draw_tris(s, render):
@@ -500,12 +533,10 @@ class MyApp(ShowBase):
         pg.connect(10, [6, 9, 7, 3, 2])
         pg.connect(11, [4, 8, 5, 2, 3])
     
-        #self.wireframeOn()
-        #pg_draw_tris(pg, self.render)
+        self.wireframeOn()
         s = pg_trunciso(pg)
+        shape_tessalate(s)
         shape_draw_tris(s, self.render)
-        #pg_draw_tris(pg, self.render)
-
 
  
 app = MyApp()
