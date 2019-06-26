@@ -408,28 +408,31 @@ def shape_tessalate(s):
         to_add.append(new_face)
         if f.original_vertex in s.vertices:
             s.vertices.remove(f.original_vertex)
+    for f in to_add:
+        s.faces.append(f)
+
+    # Then destroy all original faces and edges, making their linked
+    # points also no longer reference them.
     for f in to_remove:
         s.faces.remove(f)
         for e in f.edges:
+            if e in s.edges:
+                s.edges.remove(e)
             if e in e.v1.edges:
                 e.v1.edges.remove(e)
             if e in e.v2.edges:
                 e.v2.edges.remove(e)
-            if e in s.edges:
-                s.edges.remove(e)
-    for f in to_add:
-        s.faces.append(f)
-
-    # Then destroy all original edges, making their linked
-    # points also no longer reference them.  Then follow hex
-    # making procedure from the truncation step.
     
     s.spherize_vertices()
+
+    # Follow hex making procedure from the truncation step.
+
+    #for i in range (0,50):
+    #    s.spherize_vertices()
     #shape_make_face_bridges(s)
     #s.spherize_vertices()
     #faces_from_bridging_edges(s)
     #s.spherize_vertices()
-    pass
 
 
 def shape_draw_tris(s, render):
@@ -465,6 +468,9 @@ def shape_draw_tris(s, render):
         nodePath = render.attachNewNode(node)
         nodePath.setPos(0, 10, 0)
 
+    # Edges not associated with faces.  A completed shape should
+    # not have any of these.  But it's useful to see them in wireframe
+    # mode during transitions.
     for edge in [e for e in s.edges if len(e.faces) == 0]:
         vdata = GeomVertexData('edgetris', format, Geom.UHStatic)
         vdata.setNumRows(3)
@@ -472,10 +478,8 @@ def shape_draw_tris(s, render):
         color = GeomVertexWriter(vdata, 'color')
         prim = GeomTriangles(Geom.UHStatic)
 
-        #vertex.addData3f(0, 0, 0)
         vertex.addData3f(edge.v1.pt.x, edge.v1.pt.y, edge.v1.pt.z)
         color.addData4f(0, 0, 0, 1)
-        
         vertex.addData3f(edge.v1.pt.x, edge.v1.pt.y, edge.v1.pt.z)
         color.addData4f(0, 0, 0, 1)
         vertex.addData3f(edge.v2.pt.x, edge.v2.pt.y, edge.v2.pt.z)
@@ -485,7 +489,7 @@ def shape_draw_tris(s, render):
 
         geom = Geom(vdata)
         geom.addPrimitive(prim)
-        node = GeomNode('TheTris')
+        node = GeomNode('TheEdge')
         node.addGeom(geom)
         nodePath = render.attachNewNode(node)
         nodePath.setPos(0, 10, 0)
