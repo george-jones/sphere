@@ -45,6 +45,17 @@ class Shape():
                     v1.edges.append(e)
                     v2.edges.append(e)
 
+    def spherize_vertices(self):
+        """Move all points to the unit sphere
+
+        """
+        origin = Point3(0, 0, 0)
+        for vert in self.vertices:
+            pt = vert.pt
+            vec = pt - origin
+            vec.normalize()
+            vert.pt = Point3(vec.x, vec.y, vec.z)
+
 
 class Face():
     def __init__(self):
@@ -347,6 +358,7 @@ def pg_trunciso(pg):
     
     shape_bridge_faces(s)
     faces_from_bridging_edges(s)
+    s.spherize_vertices()
     return s
 
 
@@ -377,7 +389,7 @@ def pg_draw_tris(pg, render):
     node = GeomNode('TheTris')
     node.addGeom(geom)
     nodePath = render.attachNewNode(node)
-    nodePath.setPos(0, 10, 0)
+    nodePath.setPos(0, 0, 0)
 
 
 def vec_dot(v1, v2):
