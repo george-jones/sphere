@@ -370,6 +370,7 @@ def pg_trunciso(pg):
     s.vertices.extend(all_new_verts)
     
     shape_make_face_bridges(s)
+    s.spherize_vertices()
     faces_from_bridging_edges(s)
     s.spherize_vertices()
     return s
@@ -437,7 +438,6 @@ def shape_tessalate(s):
     s.spherize_vertices()
 
     # Follow hex making procedure from the truncation step.
-    #shape_make_face_bridges(s)
     faces_from_bridging_edges(s)
     s.spherize_vertices()
 
@@ -570,9 +570,16 @@ class MyApp(ShowBase):
         pg.connect(10, [6, 9, 7, 3, 2])
         pg.connect(11, [4, 8, 5, 2, 3])
     
-        #self.wireframeOn()
+        self.wireframeOn()
         s = pg_trunciso(pg)
+        print("Faces: %d" % len(s.faces))
         shape_tessalate(s)
+        print("Faces: %d" % len(s.faces))
+        shape_tessalate(s)
+        print("Faces: %d" % len(s.faces))
+        shape_tessalate(s)
+        print("Faces: %d" % len(s.faces))
+
         shape_draw_tris(s, self.render)
 
  
