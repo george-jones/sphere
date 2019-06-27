@@ -246,6 +246,10 @@ def shape_make_face_bridges(s):
             v_this.edges.append(e)
             v_other.edges.append(e)
             s.edges.append(e)
+            if v_this not in s.vertices:
+                s.vertices.append(v_this)
+            if v_other not in s.vertices:
+                s.vertices.append(v_other)
     # remove edges from original central verts
     for face in s.faces:
         vert = face.original_vertex
@@ -324,6 +328,7 @@ def faces_from_bridging_edges(s):
                         e.faces.append(f)
                 f.original_vertex = Vertex(x, y, z)
                 f.original_vertex.spawned_face = f
+                s.vertices.append(f.original_vertex)
                 s.faces.append(f)
                 new_hex += 1
                 break
@@ -334,6 +339,7 @@ def pg_trunciso(pg):
     s = Shape()
     s.load_from_point_graph(pg)
 
+    all_new_verts = [ ]
     # every vertex becomes a pentagon
     for v in s.vertices:
         f = Face()
@@ -360,10 +366,12 @@ def pg_trunciso(pg):
             e.faces.append(f)
             f.edges.append(e)
         s.faces.append(f)
+        all_new_verts.extend(new_verts)
+    s.vertices.extend(all_new_verts)
     
-    s.spherize_vertices()
+    #s.spherize_vertices()
     shape_make_face_bridges(s)
-    s.spherize_vertices()
+    #s.spherize_vertices()
     faces_from_bridging_edges(s)
     s.spherize_vertices()
     return s
@@ -453,8 +461,6 @@ def shape_draw_tris(s, render):
         points = pobj['points']
         for i, pt in enumerate(points):
             vertex.addData3f(pt.x, pt.y, pt.z)
-            #color.addData4f(random.random(), random.random(), random.random(), 1.0)
-            #color.addData4f(1, 1, 1, 1.0)
             color.addData4f(r, g, b, 1.0)
         for i in range(0, len(points)):
             idx = i+1
@@ -493,6 +499,32 @@ def shape_draw_tris(s, render):
         node.addGeom(geom)
         nodePath = render.attachNewNode(node)
         nodePath.setPos(0, 10, 0)
+
+    # show rectangle for scale
+    vdata = GeomVertexData('facetris', format, Geom.UHStatic)
+    vdata.setNumRows(4)
+    vertex = GeomVertexWriter(vdata, 'vertex')
+    color = GeomVertexWriter(vdata, 'color')
+    prim = GeomTriangles(Geom.UHStatic)
+
+    vertex.addData3f(-1, 0, 1)
+    vertex.addData3f(-1, 0, -1)
+    vertex.addData3f(1, 0, -1)
+    vertex.addData3f(1, 0, 1)
+    color.addData4f(1,1,1,1)
+    color.addData4f(1,1,1,1)
+    color.addData4f(1,1,1,1)
+    color.addData4f(1,1,1,1)
+
+    prim.addVertices(0, 1, 3)
+    prim.addVertices(3, 1, 2)
+
+    geom = Geom(vdata)
+    geom.addPrimitive(prim)
+    node = GeomNode('TheRect')
+    node.addGeom(geom)
+    nodePath = render.attachNewNode(node)
+    nodePath.setPos(0, 10, 0)
 
 
 class MyApp(ShowBase):
@@ -537,9 +569,9 @@ class MyApp(ShowBase):
         pg.connect(10, [6, 9, 7, 3, 2])
         pg.connect(11, [4, 8, 5, 2, 3])
     
-        self.wireframeOn()
+        #self.wireframeOn()
         s = pg_trunciso(pg)
-        shape_tessalate(s)
+        #shape_tessalate(s)
         shape_draw_tris(s, self.render)
 
  
