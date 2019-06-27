@@ -369,9 +369,7 @@ def pg_trunciso(pg):
         all_new_verts.extend(new_verts)
     s.vertices.extend(all_new_verts)
     
-    #s.spherize_vertices()
     shape_make_face_bridges(s)
-    #s.spherize_vertices()
     faces_from_bridging_edges(s)
     s.spherize_vertices()
     return s
@@ -402,6 +400,8 @@ def shape_tessalate(s):
             new_verts.append(v)
             # faceless edge connecting the original vertex to new vertex
             e = Edge(v, old_vert)
+            v.edges.append(e)
+            old_vert.edges.append(e)
             s.edges.append(e)
             s.vertices.append(v)
         sort_verts_angular(new_verts, midpt)
@@ -411,7 +411,10 @@ def shape_tessalate(s):
         for idx, vert in enumerate(new_verts):
             next_vert = new_verts[(idx+1) % len(new_verts)]
             e = Edge(vert, next_vert)
+            vert.edges.append(e)
+            next_vert.edges.append(e)
             new_face.edges.append(e)
+            s.edges.append(e)
         to_remove.append(f)
         to_add.append(new_face)
         if f.original_vertex in s.vertices:
@@ -434,13 +437,9 @@ def shape_tessalate(s):
     s.spherize_vertices()
 
     # Follow hex making procedure from the truncation step.
-
-    #for i in range (0,50):
-    #    s.spherize_vertices()
     #shape_make_face_bridges(s)
-    #s.spherize_vertices()
-    #faces_from_bridging_edges(s)
-    #s.spherize_vertices()
+    faces_from_bridging_edges(s)
+    s.spherize_vertices()
 
 
 def shape_draw_tris(s, render):
