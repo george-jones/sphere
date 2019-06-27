@@ -402,7 +402,7 @@ def shape_tessalate(s):
             new_verts.append(v)
             # faceless edge connecting the original vertex to new vertex
             e = Edge(v, old_vert)
-            f.edges.append(e)
+            s.edges.append(e)
             s.vertices.append(v)
         sort_verts_angular(new_verts, midpt)
         new_face = Face()
@@ -501,30 +501,32 @@ def shape_draw_tris(s, render):
         nodePath.setPos(0, 10, 0)
 
     # show rectangle for scale
-    vdata = GeomVertexData('facetris', format, Geom.UHStatic)
-    vdata.setNumRows(4)
-    vertex = GeomVertexWriter(vdata, 'vertex')
-    color = GeomVertexWriter(vdata, 'color')
-    prim = GeomTriangles(Geom.UHStatic)
+    show_rect = False
+    if show_rect:
+        vdata = GeomVertexData('facetris', format, Geom.UHStatic)
+        vdata.setNumRows(4)
+        vertex = GeomVertexWriter(vdata, 'vertex')
+        color = GeomVertexWriter(vdata, 'color')
+        prim = GeomTriangles(Geom.UHStatic)
 
-    vertex.addData3f(-1, 0, 1)
-    vertex.addData3f(-1, 0, -1)
-    vertex.addData3f(1, 0, -1)
-    vertex.addData3f(1, 0, 1)
-    color.addData4f(1,1,1,1)
-    color.addData4f(1,1,1,1)
-    color.addData4f(1,1,1,1)
-    color.addData4f(1,1,1,1)
+        vertex.addData3f(-1, 0, 1)
+        vertex.addData3f(-1, 0, -1)
+        vertex.addData3f(1, 0, -1)
+        vertex.addData3f(1, 0, 1)
+        color.addData4f(1,1,1,1)
+        color.addData4f(1,1,1,1)
+        color.addData4f(1,1,1,1)
+        color.addData4f(1,1,1,1)
 
-    prim.addVertices(0, 1, 3)
-    prim.addVertices(3, 1, 2)
+        prim.addVertices(0, 1, 3)
+        prim.addVertices(3, 1, 2)
 
-    geom = Geom(vdata)
-    geom.addPrimitive(prim)
-    node = GeomNode('TheRect')
-    node.addGeom(geom)
-    nodePath = render.attachNewNode(node)
-    nodePath.setPos(0, 10, 0)
+        geom = Geom(vdata)
+        geom.addPrimitive(prim)
+        node = GeomNode('TheRect')
+        node.addGeom(geom)
+        nodePath = render.attachNewNode(node)
+        nodePath.setPos(0, 10, 0)
 
 
 class MyApp(ShowBase):
@@ -571,7 +573,7 @@ class MyApp(ShowBase):
     
         #self.wireframeOn()
         s = pg_trunciso(pg)
-        #shape_tessalate(s)
+        shape_tessalate(s)
         shape_draw_tris(s, self.render)
 
  
