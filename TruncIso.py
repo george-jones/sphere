@@ -388,8 +388,8 @@ def shape_tessalate(s):
     # relative to the midpoint.  Create new faceless edges
     # connecting to the original vertices.  Remove original
     # face from the shape's face list.
-    to_remove = [ ]
-    to_add = [ ]
+    faces_remove = [ ]
+    faces_add = [ ]
     for f in s.faces:
         midpt = f.get_midpoint()
         mid_vertex = Vertex(midpt.x, midpt.y, midpt.z)
@@ -416,16 +416,15 @@ def shape_tessalate(s):
             next_vert.edges.append(e)
             new_face.edges.append(e)
             s.edges.append(e)
-        to_remove.append(f)
-        to_add.append(new_face)
+        faces_remove.append(f)
+        faces_add.append(new_face)
         if f.original_vertex in s.vertices:
             s.vertices.remove(f.original_vertex)
-    for f in to_add:
-        s.faces.append(f)
+    s.faces.extend(faces_add)
 
     # Then destroy all original faces and edges, making their linked
     # points also no longer reference them.
-    for f in to_remove:
+    for f in faces_remove:
         s.faces.remove(f)
         for e in f.edges:
             if e in s.edges:
@@ -440,6 +439,38 @@ def shape_tessalate(s):
     # Follow hex making procedure from the truncation step.
     faces_from_bridging_edges(s)
     s.spherize_vertices()
+
+    # remove edges that don't have the right number of shapes.
+    # this seems like a cleanup step that shouldn't be necessary
+    # except for some bug in construction that I haven't been
+    # able to nail down
+    edges_remove = [ ]
+    for e in s.edges:
+        n = len(e.faces)
+        if n != 2:
+            edges_remove.append(e)
+    for e in edges_remove:
+        s.edges.remove(e)
+        if e.v1 is not None and e in e.v1.edges:
+            e.v1.edges.remove(e)
+        if e.v2 is not None and e in e.v2.edges:
+            e.v2.edges.remove(e)
+
+    # remove faces located in the same place.  another
+    # cleanup step that indicates a flaw in the construction code.
+    dupe_faces = [ ]
+    for f in s.faces:
+        for f2 in s.faces:
+            if f is not f2 and f not in dupe_faces and f2 not in dupe_faces:
+                d = distsq(f.original_vertex.pt, f2.original_vertex.pt)
+                if d < 0.001:
+                    dupe_faces.append(f2)
+    for f in dupe_faces:
+        s.faces.remove(f)
+        for e in f.edges:
+            if e in s.edges:
+                s.edges.remove(e)
+
 
 
 def shape_draw_tris(s, render):
@@ -570,17 +601,13 @@ class MyApp(ShowBase):
         pg.connect(10, [6, 9, 7, 3, 2])
         pg.connect(11, [4, 8, 5, 2, 3])
     
-        self.wireframeOn()
+        #self.wireframeOn()
         s = pg_trunciso(pg)
         print("Faces: %d" % len(s.faces))
-        shape_tessalate(s)
-        print("Faces: %d" % len(s.faces))
-        shape_tessalate(s)
-        print("Faces: %d" % len(s.faces))
-        shape_tessalate(s)
-        print("Faces: %d" % len(s.faces))
-
-        shape_draw_tris(s, self.render)
+        for n in range(0, 3):
+            shape_tessalate(s)
+            print("Faces: %d" % len(s.faces))
+        shape_draw_tris(s, self.render)                
 
  
 app = MyApp()
